@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Для тебе</title>
+<style>
+:root{--bg:#14213d;--ink:#f4efe4;--gold:#f2b84b;--mute:#7f8bab}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:21px/1.75 Georgia,"Times New Roman",serif;display:flex;justify-content:center;padding:40px 18px}
+main{max-width:560px;width:100%}
+p{margin:0 0 1.8em}
+.en{font-style:italic;color:var(--gold)}
+input{font:inherit;width:5.2em;text-align:center;color:var(--gold);background:rgba(255,255,255,.07);border:0;border-bottom:2px solid var(--gold);border-radius:6px 6px 0 0;padding:0 4px;outline:none}
+input::placeholder{color:var(--mute);opacity:1}
+input:focus-visible{background:rgba(255,255,255,.14)}
+.bad{animation:shake .4s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+video{width:100%;border-radius:10px;display:block}
+canvas{position:fixed;inset:0;pointer-events:none}
+</style>
+</head>
+<body>
+<main>
+<p>Щоб телеграму надіслати,<br>
+чарівний <input id="pw" type="password" inputmode="numeric" placeholder="шифр" autocomplete="off" aria-label="шифр"> треба знати.<br>
+Його не важко відгадати,<br>
+якщо уважно все читати.</p>
+
+<p>Іван Матісько точно знав,<br>
+яке село він фільмував.<br>
+У труботелик транслював —<br>
+три роки поспіль не вгавав.</p>
+
+<p>Пасивне й темне все відняти,<br>
+а потім в подорож помчати.<br>
+<span class="en">Де Power of three<br>will set us free.</span></p>
+
+<p>Та все не можна додавати —<br>
+лиш високо-духовне взяти.<br>
+Тепер ти знаєш без обману,<br>
+куди відправить телеграму.</p>
+
+<div id="out"></div>
+</main>
+<canvas id="cv"></canvas>
+<script>
+const pw = document.getElementById('pw'), out = document.getElementById('out');
+let busy = false;
+
+pw.addEventListener('keydown', e => { if (e.key === 'Enter') tryOpen(); });
+
+function fanfare(ctx) {
+  // [частота, початок, тривалість]
+  const notes = [[392,0,.14],[392,.17,.14],[392,.34,.14],[523,.52,.5],[440,1.08,.18],[523,1.3,.18],[659,1.55,1.1]];
+  for (const [f, t, d] of notes) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sawtooth'; o.frequency.value = f;
+    const s = ctx.currentTime + t;
+    g.gain.setValueAtTime(0, s);
+    g.gain.linearRampToValueAtTime(.18, s + .03);
+    g.gain.exponentialRampToValueAtTime(.001, s + d + .15);
+    o.connect(g).connect(ctx.destination);
+    o.start(s); o.stop(s + d + .2);
+  }
+}
+
+function confetti() {
+  const cv = document.getElementById('cv'), c = cv.getContext('2d');
+  cv.width = innerWidth; cv.height = innerHeight;
+  const cols = ['#f2b84b','#e63946','#4cc9f0','#80ed99','#f4efe4','#b5179e'];
+  const ps = Array.from({length: 160}, () => ({
+    x: Math.random() * cv.width, y: -20 - Math.random() * cv.height * .6,
+    w: 6 + Math.random() * 6, h: 10 + Math.random() * 8,
+    vy: 2 + Math.random() * 3, vx: -1 + Math.random() * 2,
+    r: Math.random() * 6, vr: -.2 + Math.random() * .4,
+    col: cols[Math.floor(Math.random() * cols.length)]
+  }));
+  (function frame() {
+    c.clearRect(0, 0, cv.width, cv.height);
+    let alive = false;
+    for (const p of ps) {
+      p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      if (p.y < cv.height + 20) alive = true;
+      c.save(); c.translate(p.x, p.y); c.rotate(p.r);
+      c.fillStyle = p.col; c.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); c.restore();
+    }
+    if (alive) requestAnimationFrame(frame); else c.clearRect(0, 0, cv.width, cv.height);
+  })();
+}
+
+async function decrypt(password) {
+  const data = new Uint8Array(await (await fetch('gift.bin')).arrayBuffer());
+  const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: data.slice(0, 16), iterations: 300000, hash: 'SHA-256' },
+    km, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  return crypto.subtle.decrypt({ name: 'AES-GCM', iv: data.slice(16, 28) }, key, data.slice(28));
+}
+
+async function tryOpen() {
+  if (busy || !pw.value) return;
+  busy = true;
+  const ctx = new (window.AudioContext || window.webkitAudioContext)(); // створюємо одразу, поки є "жест" користувача
+  try {
+    const plain = await decrypt(pw.value.trim());
+    const v = document.createElement('video');
+    v.src = URL.createObjectURL(new Blob([plain], { type: 'video/mp4' }));
+    v.controls = true; v.playsInline = true;
+    out.appendChild(v);
+    pw.disabled = true;
+    fanfare(ctx); confetti();
+    setTimeout(() => v.play().catch(() => {}), 2800);
+  } catch (e) {
+    pw.classList.remove('bad'); void pw.offsetWidth; pw.classList.add('bad');
+    pw.select();
+  }
+  busy = false;
+}
+</script>
+</body>
+</html>
