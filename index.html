@@ -22,6 +22,7 @@ canvas{position:fixed;inset:0;pointer-events:none}
 </head>
 <body>
 <main>
+<div id="poem">
 <p>Щоб телеграму надіслати,<br>
 чарівний <input id="pw" type="password" inputmode="numeric" placeholder="шифр" autocomplete="off" aria-label="шифр"> треба знати.<br>
 Його не важко відгадати,<br>
@@ -41,6 +42,7 @@ canvas{position:fixed;inset:0;pointer-events:none}
 Тепер ти знаєш без обману,<br>
 куди відправить телеграму.</p>
 
+</div>
 <div id="out"></div>
 </main>
 <canvas id="cv"></canvas>
@@ -107,8 +109,8 @@ async function tryOpen() {
     const v = document.createElement('video');
     v.src = URL.createObjectURL(new Blob([plain], { type: 'video/mp4' }));
     v.controls = true; v.playsInline = true;
+    document.getElementById('poem').hidden = true;
     out.appendChild(v);
-    pw.disabled = true;
     fanfare(ctx); confetti();
     setTimeout(() => v.play().catch(() => {}), 2800);
   } catch (e) {
